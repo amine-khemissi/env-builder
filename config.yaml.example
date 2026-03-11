@@ -1,0 +1,42 @@
+# config.yaml — place this file at ~/.eb/config.yaml
+# Or just run `eb edit` and it will be created for you.
+#
+# Packages under "system" are installed using the package manager
+# that matches your OS (pacman on Arch, apt on Ubuntu, dnf on Fedora...).
+# Run `eb config` to see which manager will be used on your system.
+#
+# Version pinning is optional. If omitted, the latest available version is used.
+# eb install is idempotent: already-installed packages are skipped.
+# eb status shows what is installed vs. missing, and flags version mismatches.
+
+system:
+  git:
+  curl:
+  make:
+  vim:
+    version: "9.1.0016-1"   # pin to a specific version (optional)
+  docker:
+    post_install:
+      - sudo systemctl enable --now docker
+      - sudo usermod -aG docker $USER
+    post_clean:
+      - sudo groupdel docker
+
+# AUR packages — Arch / CachyOS only (requires paru to be installed)
+# paru:
+#   kind:
+#   kind:
+#     version: "0.22.0"
+
+# Fully custom install/uninstall scripts (run as a single bash -e script).
+# Provide a `check` command so eb status and eb install can detect the current state.
+# custom:
+#   go:
+#     check: go version | awk '{print $3}'   # stdout = installed version
+#     install:
+#       - VERSION=$(curl -s "https://go.dev/VERSION?m=text" | head -1)
+#       - curl -sL "https://go.dev/dl/${VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+#       - sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+#       - rm /tmp/go.tar.gz
+#     uninstall:
+#       - sudo rm -rf /usr/local/go

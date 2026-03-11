@@ -1,0 +1,22 @@
+pacman:
+  install: sudo pacman -S --noconfirm --needed
+  remove: sudo pacman -Rns --noconfirm
+  check: pacman -Q
+  os: [arch, cachyos, manjaro, artix, endeavouros, garuda]
+
+paru:
+  install: paru -S --noconfirm --needed
+  remove: sudo pacman -Rns --noconfirm
+  check: pacman -Q
+
+apt:
+  install: sudo apt install -y
+  remove: sudo apt remove -y
+  check: dpkg-query -W -f=${Version}
+  os: [debian, ubuntu, linuxmint, pop, elementary, kali, raspbian]
+
+dnf:
+  install: sudo dnf install -y
+  remove: sudo dnf remove -y
+  check: rpm -q --queryformat %{VERSION}
+  os: [fedora, rhel, centos, rocky, almalinux, ol]

@@ -1,137 +1,55 @@
 #!/usr/bin/env bash
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export SCRIPT_DIR
-CONFIG="$SCRIPT_DIR/tools.yaml"
-CLEAN=false
+REPO="amine-khemissi/env-builder"   # update before distributing
+BIN_DIR="$HOME/.local/bin"
+EB_DIR="$HOME/.eb"
 
-for arg in "$@"; do
-    case "$arg" in
-        --clean) CLEAN=true ;;
-        *) echo "Unknown option: $arg"; echo "Usage: $0 [--clean]"; exit 1 ;;
-    esac
-done
+# Detect architecture
+case $(uname -m) in
+  x86_64)  ARCH="amd64" ;;
+  aarch64) ARCH="arm64" ;;
+  *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
 
-if [[ ! -f "$CONFIG" ]]; then
-    echo "Error: $CONFIG not found."
-    exit 1
+# Resolve latest release tag
+VERSION=$(curl -sf "https://api.github.com/repos/$REPO/releases/latest" \
+  | grep '"tag_name"' | cut -d'"' -f4)
+
+if [[ -z "$VERSION" ]]; then
+  echo "Error: could not fetch latest release from $REPO"
+  exit 1
 fi
 
-if ! command -v yq &>/dev/null; then
-    echo "Installing yq (YAML parser)..."
-    sudo pacman -S --noconfirm --needed yq
+echo "Installing eb $VERSION ($ARCH)..."
+mkdir -p "$BIN_DIR" "$EB_DIR"
+
+echo "Downloading eb binary..."
+curl -fL --progress-bar "https://github.com/$REPO/releases/download/$VERSION/eb-linux-$ARCH" \
+  -o "$BIN_DIR/eb" || { echo "Error: could not download eb binary for $ARCH from release $VERSION"; exit 1; }
+chmod +x "$BIN_DIR/eb"
+
+echo "Downloading managers.yaml..."
+curl -fL --progress-bar "https://github.com/$REPO/releases/download/$VERSION/managers.yaml" \
+  -o "$EB_DIR/managers.yaml" || { echo "Error: could not download managers.yaml from release $VERSION"; exit 1; }
+
+# Shell completions
+if command -v fish >/dev/null 2>&1; then
+  mkdir -p ~/.config/fish/completions
+  "$BIN_DIR/eb" completion fish > ~/.config/fish/completions/eb.fish
+fi
+if command -v bash >/dev/null 2>&1; then
+  mkdir -p ~/.local/share/bash-completion/completions
+  "$BIN_DIR/eb" completion bash > ~/.local/share/bash-completion/completions/eb
+fi
+if command -v zsh >/dev/null 2>&1; then
+  mkdir -p ~/.local/share/zsh/site-functions
+  "$BIN_DIR/eb" completion zsh > ~/.local/share/zsh/site-functions/_eb
 fi
 
-run_post_install() {
-    local manager="$1"
-    local count
-    count=$(yq ".$manager | length" "$CONFIG")
-    for ((i = 0; i < count; i++)); do
-        local post_count
-        post_count=$(yq ".$manager[$i].post_install // [] | length" "$CONFIG")
-        if [[ "$post_count" -eq 0 ]]; then
-            continue
-        fi
-        local pkg_name
-        pkg_name=$(yq ".$manager[$i].name" "$CONFIG")
-        for ((j = 0; j < post_count; j++)); do
-            local cmd
-            cmd=$(yq ".$manager[$i].post_install[$j]" "$CONFIG")
-            echo "[$pkg_name] post-install: $cmd"
-            eval "$cmd"
-        done
-    done
-}
-
-install_section() {
-    local manager="$1"
-    local packages=()
-
-    while IFS= read -r pkg; do
-        packages+=("$pkg")
-    done < <(yq ".$manager[].name" "$CONFIG")
-
-    if [[ ${#packages[@]} -eq 0 ]]; then
-        return
-    fi
-
-    echo "[$manager] Installing: ${packages[*]}"
-    if [[ "$manager" == "pacman" ]]; then
-        sudo pacman -S --noconfirm --needed "${packages[@]}"
-    else
-        paru -S --noconfirm --needed "${packages[@]}"
-    fi
-
-    run_post_install "$manager"
-}
-
-install_custom_section() {
-    local count
-    count=$(yq ".custom | length" "$CONFIG")
-    for ((i = 0; i < count; i++)); do
-        local pkg_name
-        pkg_name=$(yq ".custom[$i].name" "$CONFIG")
-        local step_count
-        step_count=$(yq ".custom[$i].install // [] | length" "$CONFIG")
-        if [[ "$step_count" -eq 0 ]]; then
-            continue
-        fi
-        echo "[custom] Installing: $pkg_name"
-        for ((j = 0; j < step_count; j++)); do
-            local cmd
-            cmd=$(yq ".custom[$i].install[$j]" "$CONFIG")
-            echo "[$pkg_name] $cmd"
-            eval "$cmd"
-        done
-    done
-}
-
-clean_section() {
-    local manager="$1"
-    local packages=()
-
-    while IFS= read -r pkg; do
-        packages+=("$pkg")
-    done < <(yq ".$manager[].name" "$CONFIG")
-
-    if [[ ${#packages[@]} -eq 0 ]]; then
-        return
-    fi
-
-    echo "[$manager] Removing: ${packages[*]}"
-    sudo pacman -Rns --noconfirm "${packages[@]}" 2>/dev/null || true
-}
-
-clean_custom_section() {
-    local count
-    count=$(yq ".custom | length" "$CONFIG")
-    for ((i = 0; i < count; i++)); do
-        local pkg_name
-        pkg_name=$(yq ".custom[$i].name" "$CONFIG")
-        local step_count
-        step_count=$(yq ".custom[$i].uninstall // [] | length" "$CONFIG")
-        if [[ "$step_count" -eq 0 ]]; then
-            continue
-        fi
-        echo "[custom] Removing: $pkg_name"
-        for ((j = 0; j < step_count; j++)); do
-            local cmd
-            cmd=$(yq ".custom[$i].uninstall[$j]" "$CONFIG")
-            echo "[$pkg_name] $cmd"
-            eval "$cmd"
-        done
-    done
-}
-
-if [[ "$CLEAN" == true ]]; then
-    clean_custom_section
-    clean_section paru
-    clean_section pacman
-else
-    install_section pacman
-    install_section paru
-    install_custom_section
-fi
-
-echo "Done."
+echo ""
+echo "  eb            -> $BIN_DIR/eb"
+echo "  managers.yaml -> $EB_DIR/managers.yaml"
+echo ""
+echo "Next: run 'eb edit' to create and edit your config."
+echo "Then: eb install"

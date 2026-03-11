@@ -1,30 +1,30 @@
-pacman:
-  - name: starship
+system:
+  starship:
     post_install:
       - mkdir -p ~/.config
       - cp $SCRIPT_DIR/starship.toml ~/.config/starship.toml
       - grep -q "starship init fish" ~/.config/fish/config.fish 2>/dev/null || printf '\nstarship init fish | source\n' >> ~/.config/fish/config.fish
-  - name: curl
-  - name: gcc
+  curl:
+  gcc:
     comment: provides g++
-  - name: make
-  - name: docker
+  make:
+  docker:
     post_install:
       - sudo systemctl enable --now docker
       - sudo usermod -aG docker $USER
-  - name: kubectl
-  - name: meld
-  - name: git
-  - name: bc
-  - name: vim
-  - name: npm
-  - name: keepassxc
+  kubectl:
+  meld:
+  git:
+  bc:
+  vim:
+  npm:
+  keepassxc:
 
 paru:
-  - name: kind
+  kind:
 
 custom:
-  - name: go
+  go:
     install:
       - VERSION=$(curl -s "https://go.dev/VERSION?m=text" | head -1)
       - curl -sL "https://go.dev/dl/${VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
@@ -35,8 +35,7 @@ custom:
     uninstall:
       - sudo rm -rf /usr/local/go
       - sed -i '/\/usr\/local\/go\/bin/d' ~/.config/fish/config.fish
-
-  - name: goland
+  goland:
     install:
       - GOLAND_URL=$(curl -s "https://data.services.jetbrains.com/products/releases?code=GO&latest=true&type=release" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['GO'][0]['downloads']['linux']['link'])")
       - curl -sL "$GOLAND_URL" -o /tmp/goland.tar.gz
